@@ -18,7 +18,8 @@
       #:circuit import-path
       #:reset reset-input-name reset-input-signal:boolean
       #:persistent [persistent-input ...]
-      #:init-zeroed [init-zeroed-field ...])
+      #:init-zeroed [init-zeroed-field ...]
+      #:init-with-val [[val-init-field init-value] ...] )
      #:with circuit (format-id stx "circuit")
      #:with metadata (format-id stx "metadata")
      #'(#%module-begin
@@ -29,7 +30,9 @@
            'reset-input-name
            reset-input-signal
            (list 'persistent-input ...)
-           (list 'init-zeroed-field ...)))
+           (list 'init-zeroed-field ...)
+           (list
+            (list 'val-init-field init-value) ...) ))
         (provide circuit))]
     [(_ body ...) ; fallback, useful in e.g. submodules (like a test module)
      #'(#%module-begin body ...)]))

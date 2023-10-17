@@ -13,7 +13,9 @@
    reset-input-name
    reset-input-signal ; #t or #f, what the signal should be set to for reset
    persistent-fields ; list of field names
-   init-zeroed-fields)) ; fields that are initially zero
+   init-zeroed-fields ; fields that are initially zero
+   val-init-fields ; fields that are initiated with a specific value
+   )) 
 
 (define (crash+power-on-reset circuit)
   (let* ([m (circuit-meta circuit)]

@@ -72,12 +72,17 @@
 (define (verify-init spec circuit crash+por R verbose)
   (define f0 (spec-init spec))
   (define m (circuit-meta circuit))
-  (define c0
+  (define c0-0
     (@update-fields
      ((meta-new-symbolic m))
      (let ([c-zeroed ((meta-new-zeroed m))])
        (for/list ([field-name (circuit-init-zeroed-fields circuit)])
          (cons field-name (@get-field c-zeroed field-name))))))
+   (define c0
+    (@update-fields
+     c0-0
+     (for/list ([field-val (circuit-val-init-fields circuit)])
+       (cons (car field-val) (car (cdr field-val))))))
   (define c-init (crash+por c0))
   (define inv (meta-invariant m))
   (define res
