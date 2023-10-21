@@ -82,7 +82,7 @@
     (@update-fields
      c0-0
      (for/list ([field-val (circuit-val-init-fields circuit)])
-       (cons (car field-val) (car (cdr field-val))))))
+       (cons (car field-val) (cdr field-val)))))
   (define c-init (crash+por c0))
   (define inv (meta-invariant m))
   (define res

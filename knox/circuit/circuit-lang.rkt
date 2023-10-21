@@ -32,7 +32,7 @@
            (list 'persistent-input ...)
            (list 'init-zeroed-field ...)
            (list
-            (list 'val-init-field init-value) ...) ))
+            (cons 'val-init-field init-value) ...) ))
         (provide circuit))]
     [(_ body ...) ; fallback, useful in e.g. submodules (like a test module)
      #'(#%module-begin body ...)]))
