@@ -19,7 +19,7 @@
       #:reset reset-input-name reset-input-signal:boolean
       #:persistent [persistent-input ...]
       #:init-zeroed [init-zeroed-field ...]
-      #:init-with-val [[val-init-field init-value] ...] )
+      (~optional (~seq #:init-with-val [[val-init-field init-value] ...] ) #:defaults ([(val-init-field 1) null] [(init-value 1) null])) )
      #:with circuit (format-id stx "circuit")
      #:with metadata (format-id stx "metadata")
      #'(#%module-begin
