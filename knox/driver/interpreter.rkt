@@ -5,6 +5,7 @@
  "../semantics/value.rkt"
  "../semantics/environment.rkt"
  "../semantics/shared.rkt"
+ "../circuit.rkt"
  (prefix-in $ "../semantics/lifted.rkt")
  (only-in racket/base error)
  (prefix-in lib: "lib.rkt")
@@ -134,15 +135,17 @@
 ;; State
 
 (addressable-struct globals
-  (environment circuit meta))
+  (environment circuit meta trng random))
 
 (define (update-circuit g circuit)
-  (globals (globals-environment g) circuit (globals-meta g)))
+  (globals (globals-environment g) circuit (globals-meta g) (globals-trng g) (globals-random g)))
+(define (update-trng g)
+  (globals (globals-environment g) (globals-circuit g) (globals-meta g) (cdr (globals-trng g)) (globals-random g)))
 
 (addressable-struct state
   (control environment globals continuation))
 
-(struct finished (value circuit)
+(struct finished (value circuit trng)
   #:transparent)
 
 ;; Continuation
@@ -151,7 +154,7 @@
   ()
   #:property prop:procedure
   (lambda (this val globals)
-    (finished val (globals-circuit globals))))
+    (finished val (globals-circuit globals) (globals-trng globals))))
 
 (addressable-struct eval-app
   (environment function-value argument-values argument-exprs continuation)
@@ -274,7 +277,19 @@
      (case op
        [(tick)
         (let ([circuit* ((meta-step meta) circuit)])
-          (cont (void) (update-circuit globals circuit*)))]
+          (if (globals-random globals)
+            (if (get-field ((meta-get-output meta) circuit*) (circuit-trng-next circuit*))
+              (cont (void) 
+                (update-circuit 
+                  (update-trng globals)
+                  (update-field circuit* 
+                    (circuit-trng-bit circuit*) 
+                    (first (globals-trng (update-trng globals))))))
+              (cont (void) (update-circuit globals circuit*))
+              )
+            (cont (void) (update-circuit globals circuit*))
+          )
+        )]
        [(in)
         (let ([inp ((meta-get-output meta) circuit)])
           (cont inp globals))]
@@ -412,11 +427,13 @@
    ;; output getters
    (map make-op (meta-output-getters metadata))))
 
-(define (make-interpreter expr global-bindings initial-circuit metadata)
+(define (make-interpreter expr global-bindings initial-circuit metadata trng random)
   (state expr
          (make-assoc)
          (globals
           (assoc-extend* (assoc-extend* initial-environment global-bindings) (meta->environment metadata))
           initial-circuit
-          metadata)
+          metadata
+          trng
+          random)
          (done)))

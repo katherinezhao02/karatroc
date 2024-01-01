@@ -19,7 +19,9 @@
       #:reset reset-input-name reset-input-signal:boolean
       #:persistent [persistent-input ...]
       #:init-zeroed [init-zeroed-field ...]
-      (~optional (~seq #:init-with-val [[val-init-field init-value] ...] ) #:defaults ([(val-init-field 1) null] [(init-value 1) null])) )
+      (~optional (~seq #:init-with-val [[val-init-field init-value] ...] ) #:defaults ([(val-init-field 1) null] [(init-value 1) null]))
+      (~optional (~seq #:trng-bit trng-bit) #:defaults ([trng-bit #'#f]))
+      (~optional (~seq #:trng-next trng-next) #:defaults ([trng-next #'#f])) )
      #:with circuit (format-id stx "circuit")
      #:with metadata (format-id stx "metadata")
      #'(#%module-begin
@@ -32,7 +34,9 @@
            (list 'persistent-input ...)
            (list 'init-zeroed-field ...)
            (list
-            (cons 'val-init-field init-value) ...) ))
+            (cons 'val-init-field init-value) ...)
+           'trng-bit
+           'trng-next))
         (provide circuit))]
     [(_ body ...) ; fallback, useful in e.g. submodules (like a test module)
      #'(#%module-begin body ...)]))

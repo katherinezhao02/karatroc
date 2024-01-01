@@ -15,6 +15,8 @@
    persistent-fields ; list of field names
    init-zeroed-fields ; fields that are initially zero
    val-init-fields ; fields that are initiated with a specific value
+   trng-bit ; input field for trng bit
+   trng-next ; output field for requesting next bit from trng
    )) 
 
 ;; This function returns a function that produces the
