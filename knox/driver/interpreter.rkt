@@ -135,12 +135,12 @@
 ;; State
 
 (addressable-struct globals
-  (environment circuit meta trng random))
+  (environment circuit meta trng random trng-bit trng-next))
 
 (define (update-circuit g circuit)
-  (globals (globals-environment g) circuit (globals-meta g) (globals-trng g) (globals-random g)))
+  (globals (globals-environment g) circuit (globals-meta g) (globals-trng g) (globals-random g) (globals-trng-bit g) (globals-trng-next g)))
 (define (update-trng g)
-  (globals (globals-environment g) (globals-circuit g) (globals-meta g) (cdr (globals-trng g)) (globals-random g)))
+  (globals (globals-environment g) (globals-circuit g) (globals-meta g) (cdr (globals-trng g)) (globals-random g) (globals-trng-bit g) (globals-trng-next g)))
 
 (addressable-struct state
   (control environment globals continuation))
@@ -278,13 +278,13 @@
        [(tick)
         (let ([circuit* ((meta-step meta) circuit)])
           (if (globals-random globals)
-            (if (get-field ((meta-get-output meta) circuit*) (circuit-trng-next circuit*))
+            (if (get-field ((meta-get-output meta) circuit*) (globals-trng-next globals))
               (cont (void) 
                 (update-circuit 
                   (update-trng globals)
                   (update-field circuit* 
-                    (circuit-trng-bit circuit*) 
-                    (first (globals-trng (update-trng globals))))))
+                    (globals-trng-bit globals) 
+                    (car (globals-trng (update-trng globals))))))
               (cont (void) (update-circuit globals circuit*))
               )
             (cont (void) (update-circuit globals circuit*))
@@ -427,7 +427,7 @@
    ;; output getters
    (map make-op (meta-output-getters metadata))))
 
-(define (make-interpreter expr global-bindings initial-circuit metadata trng random)
+(define (make-interpreter expr global-bindings initial-circuit metadata trng random trng-bit trng-next)
   (state expr
          (make-assoc)
          (globals
@@ -435,5 +435,7 @@
           initial-circuit
           metadata
           trng
-          random)
+          random
+          trng-bit
+          trng-next)
          (done)))

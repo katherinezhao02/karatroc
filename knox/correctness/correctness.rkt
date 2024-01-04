@@ -189,7 +189,7 @@
   ;; make sure reset line is de-asserted
   (define driver-expr (cons method-name (map (lambda (arg) (list 'quote arg)) args)))
   (define initial-interpreter-state
-    (make-interpreter driver-expr (driver-bindings driver) c1 m trng-state random))
+    (make-interpreter driver-expr (driver-bindings driver) c1 m trng-state random (circuit-trng-bit circuit) (circuit-trng-next circuit)))
   (define local-hints (hints (cons method-name args) c1 f1 f-out f2))
   (define inv (meta-invariant m))
   (define precondition (@check-no-asserts (@&& (R f1 c1) (inv c1))))
