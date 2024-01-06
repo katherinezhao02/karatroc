@@ -154,7 +154,7 @@
             (@fresh-symbolic (argument-name arg) (argument-type arg)))))) ;;if name is trng-state replace
   ;; trng
   (define trng-state
-    (build-list max-trng-bits (lambda (i) (@fresh-symbolic 'trng-bit (@bitvector 1)))))
+    (build-list max-trng-bits (lambda (i) (@fresh-symbolic 'trng-bit @boolean?))))
   ;; spec
   (define f1 (or override-f1 ((spec-new-symbolic spec))))
   ; (define f1 
@@ -225,8 +225,9 @@
       [(@unsat? res) (void)] ; verified
       [(@unknown? res) (error 'verify-method "~a: solver timeout" method-name)]
       [verbose
-       (define sol (@complete-solution res (@symbolics (@list args f1 f-out f2 c1 c-out c2))))
+       (define sol (@complete-solution res (@symbolics (@list args f1 f-out f2 c1 c-out c2 trng-state))))
        (eprintf "failed to verify ~a\n" method-name)
+       (eprintf "trng = ~v\n" (@evaluate trng-state sol))
        (eprintf "c1 = ~v\n" (@evaluate c1 sol))
        (eprintf "f1 = ~v\n" (@evaluate f1 sol))
        (eprintf "args = ~v\n" (@evaluate args sol))
