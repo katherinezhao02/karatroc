@@ -28,7 +28,6 @@
          #:without-crashes [without-crashes #f]
          #:without-yield [without-yield #f]
          #:verbose [verbose #f]
-         #:random [random #f]
          #:max-trng-bits [max-trng-bits 0]) ;for circuits that use trng, max bits used per operation
   (@gc-terms!)
   (define crash+por (crash+power-on-reset circuit)) ; so we can re-use it
@@ -49,7 +48,7 @@
       (when verbose (printf "verifying method ~a~a...\n"
                             (method-descriptor-name method)
                             (if without-crashes " (without crashes)" "")))
-      (verify-method spec circuit crash+por driver R method override-args override-f1 override-c1 without-crashes without-yield hints verbose random max-trng-bits)
+      (verify-method spec circuit crash+por driver R method override-args override-f1 override-c1 without-crashes without-yield hints verbose max-trng-bits)
       (when verbose (printf "  done!\n")))))
 
 ;; yosys uses the {module}_i to denote an initializer, not an invariant,
@@ -139,7 +138,7 @@
      (error 'verify-idle "failed to prove idle")]
     [else (error 'verify-idle "failed to prove idle")]))
 
-(define (verify-method spec circuit crash+por driver R method override-args override-f1 override-c1 without-crashes without-yield hints verbose random max-trng-bits)
+(define (verify-method spec circuit crash+por driver R method override-args override-f1 override-c1 without-crashes without-yield hints verbose max-trng-bits)
   ;; set up method and arguments
   (define method-name (method-descriptor-name method))
   (define spec-fn (method-descriptor-method method))
@@ -164,12 +163,12 @@
   ;     ))
   ; Idea: if random, instead of state just being spec state, it is a pair of spec state and trng state
   (define f-result 
-    (if random
+    (if (spec-random spec)
       (@check-no-asserts ((@apply spec-fn args) (cons f1 trng-state)) #:discharge-asserts #t)
       (@check-no-asserts ((@apply spec-fn args) f1) #:discharge-asserts #t)))
   (define f-out (result-value f-result))
   (define f2 
-    (if random
+    (if (spec-random spec)
       (car (result-state f-result))
       (result-state f-result)
       ))
@@ -183,13 +182,13 @@
                               ;; other inputs are idle
                               (driver-idle driver))))
   (define c1 
-    (if random
+    (if (spec-random spec)
       (@update-field c0 (circuit-trng-bit circuit) (car trng-state))
       c0)) ;; set the first value
   ;; make sure reset line is de-asserted
   (define driver-expr (cons method-name (map (lambda (arg) (list 'quote arg)) args)))
   (define initial-interpreter-state
-    (make-interpreter driver-expr (driver-bindings driver) c1 m trng-state random (circuit-trng-bit circuit) (circuit-trng-next circuit)))
+    (make-interpreter driver-expr (driver-bindings driver) c1 m trng-state (spec-random spec) (circuit-trng-bit circuit) (circuit-trng-next circuit)))
   (define local-hints (hints (cons method-name args) c1 f1 f-out f2))
   (define inv (meta-invariant m))
   (define precondition (@check-no-asserts (@&& (R f1 c1) (inv c1))))
@@ -217,7 +216,7 @@
         (@assume precondition) ; R and hardware invariant
         (@assume pc)
         (@assert (@equal? f-out c-out))
-        (if random
+        (if (spec-random spec)
           (@assert (@equal? (cdr (result-state f-result)) c-trng))
           (void))
         (@assert (R f2 c2)))))

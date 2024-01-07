@@ -20,6 +20,7 @@
       #:methods
       (method [arg-name arg-type] ...) ...
       (~optional (~seq #:leak leak) #:defaults ([leak #'#f]))
+      (~optional (~seq #:random random) #:defaults ([random #'#f]))
       body ...)
      #:with spec (format-id stx "spec")
      #'(#%module-begin
@@ -30,7 +31,8 @@
            new-symbolic-state
            (list
             (method-descriptor method 'method (list (argument 'arg-name arg-type) ...)) ...)
-           leak))
+           leak
+           random))
         (provide spec))]
     [(_ body ...) ; fallback, useful in e.g. submodules (like a test module)
      #'(#%module-begin body ...)]))

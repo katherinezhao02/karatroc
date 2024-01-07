@@ -14,4 +14,6 @@
   (init ; value
    new-symbolic ; callable that returns a symbolic value
    methods ; list of method-descriptor
-   leak)) ; #f or method descriptor
+   leak ; #f or method descriptor
+   random
+   )) 
