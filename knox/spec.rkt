@@ -15,5 +15,6 @@
    new-symbolic ; callable that returns a symbolic value
    methods ; list of method-descriptor
    leak ; #f or method descriptor
-   random
+   random ; if the hsm uses a trng
+   max-trng-bits ; max number of random bits used in a method
    )) 

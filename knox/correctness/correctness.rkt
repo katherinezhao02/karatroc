@@ -27,8 +27,7 @@
          #:override-c1 [override-c1 #f]
          #:without-crashes [without-crashes #f]
          #:without-yield [without-yield #f]
-         #:verbose [verbose #f]
-         #:max-trng-bits [max-trng-bits 0]) ;for circuits that use trng, max bits used per operation
+         #:verbose [verbose #f])
   (@gc-terms!)
   (define crash+por (crash+power-on-reset circuit)) ; so we can re-use it
   (when (or (not only-method) (equal? only-method 'invariant))
@@ -48,7 +47,7 @@
       (when verbose (printf "verifying method ~a~a...\n"
                             (method-descriptor-name method)
                             (if without-crashes " (without crashes)" "")))
-      (verify-method spec circuit crash+por driver R method override-args override-f1 override-c1 without-crashes without-yield hints verbose max-trng-bits)
+      (verify-method spec circuit crash+por driver R method override-args override-f1 override-c1 without-crashes without-yield hints verbose)
       (when verbose (printf "  done!\n")))))
 
 ;; yosys uses the {module}_i to denote an initializer, not an invariant,
@@ -138,7 +137,7 @@
      (error 'verify-idle "failed to prove idle")]
     [else (error 'verify-idle "failed to prove idle")]))
 
-(define (verify-method spec circuit crash+por driver R method override-args override-f1 override-c1 without-crashes without-yield hints verbose max-trng-bits)
+(define (verify-method spec circuit crash+por driver R method override-args override-f1 override-c1 without-crashes without-yield hints verbose)
   ;; set up method and arguments
   (define method-name (method-descriptor-name method))
   (define spec-fn (method-descriptor-method method))
@@ -153,7 +152,7 @@
             (@fresh-symbolic (argument-name arg) (argument-type arg)))))) ;;if name is trng-state replace
   ;; trng
   (define trng-state
-    (build-list max-trng-bits (lambda (i) (@fresh-symbolic 'trng-bit @boolean?))))
+    (build-list (spec-max-trng-bits spec) (lambda (i) (@fresh-symbolic 'trng-bit @boolean?))))
   ;; spec
   (define f1 (or override-f1 ((spec-new-symbolic spec))))
   ; (define f1 

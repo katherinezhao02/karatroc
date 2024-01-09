@@ -21,6 +21,7 @@
       (method [arg-name arg-type] ...) ...
       (~optional (~seq #:leak leak) #:defaults ([leak #'#f]))
       (~optional (~seq #:random random) #:defaults ([random #'#f]))
+      (~optional (~seq #:max-trng-bits max-trng-bits) #:defaults ([max-trng-bits #'0]))
       body ...)
      #:with spec (format-id stx "spec")
      #'(#%module-begin
@@ -32,7 +33,8 @@
            (list
             (method-descriptor method 'method (list (argument 'arg-name arg-type) ...)) ...)
            leak
-           random))
+           random
+           max-trng-bits))
         (provide spec))]
     [(_ body ...) ; fallback, useful in e.g. submodules (like a test module)
      #'(#%module-begin body ...)]))
