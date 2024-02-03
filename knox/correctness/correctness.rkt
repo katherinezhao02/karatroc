@@ -166,6 +166,7 @@
       (@check-no-asserts ((@apply spec-fn args) (cons f1 trng-state)) #:discharge-asserts #t)
       (@check-no-asserts ((@apply spec-fn args) f1) #:discharge-asserts #t)))
   (define f-out (result-value f-result))
+  (define f-state (result-state f-result))
   (define f2 
     (if (spec-random spec)
       (car (result-state f-result))
@@ -216,16 +217,19 @@
         (@assume pc)
         (@assert (@equal? f-out c-out))
         (if (spec-random spec)
-          (@assert (@equal? (cdr (result-state f-result)) c-trng))
+          (@assert (@equal? (cdr f-state) c-trng))
           (void))
         (@assert (R f2 c2)))))
     (cond
       [(@unsat? res) (void)] ; verified
       [(@unknown? res) (error 'verify-method "~a: solver timeout" method-name)]
       [verbose
-       (define sol (@complete-solution res (@symbolics (@list args f1 f-out f2 c1 c-out c2 trng-state))))
+       (define sol (@complete-solution res (@symbolics (@list args f1 f-out f-state f2 c1 c-out c2 c-trng trng-state))))
        (eprintf "failed to verify ~a\n" method-name)
-       (eprintf "trng = ~v\n" (@evaluate trng-state sol))
+       (cond [(spec-random spec) 
+        (eprintf "trng-state = ~v\n" (@evaluate trng-state sol))
+        (eprintf "f-trng = ~v\n" (cdr (@evaluate f-state sol)))
+        (eprintf "c-trng = ~v\n" (@evaluate c-trng sol))]) 
        (eprintf "c1 = ~v\n" (@evaluate c1 sol))
        (eprintf "f1 = ~v\n" (@evaluate f1 sol))
        (eprintf "args = ~v\n" (@evaluate args sol))

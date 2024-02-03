@@ -8,6 +8,7 @@
  "../circuit.rkt"
  "../spec.rkt"
  "../emulator.rkt"
+ (only-in racket build-list)
  racket/list racket/class racket/match)
 
 (provide checker%
@@ -68,7 +69,8 @@
       (let* ([c ((meta-new-symbolic meta))]
              [f ((spec-new-symbolic spec))]
              [p (@&& ((meta-invariant meta) c) (@check-no-asserts (R f c)))]
-             [emu (result-state (emulator-interpret '(init) (emulator:state #f f) p))])
+             [t (build-list (spec-max-trng-bits spec) (lambda (i) (@fresh-symbolic 'trng-bit @boolean?)))]
+             [emu (result-state (emulator-interpret '(init) (emulator:state #f (if (spec-random spec) (cons f t) f)) p))])
         (list (set (pairing c emu) p (hasheq) #f))))
 
     (define checks-disabled #f)
@@ -176,6 +178,8 @@
         (match-define (result emulator-out emulator-after-out) (emulator-interpret '(get-output) emulator-with-input focus-pred))
         (set! emulator-with-input emulator-after-out) ; in case the emulator updates state / calls the oracle as part of get-output
         (define outputs-equal (@equal? c-out emulator-out))
+        ; (printf "c-out ~v~n" c-out)
+        ; (printf "emulator-out ~v~n" emulator-out)
         (unless (or (eqv? outputs-equal #t) ; avoid solver query when possible
                     (@unsat? (@verify (@begin
                                        (@assume focus-pred)
@@ -185,7 +189,7 @@
       (unless checks-disabled
         (define c-reset (circuit-crash+power-on-reset (pairing-circuit focus-term)))
         (define f (emulator:state-oracle (pairing-emulator focus-term)))
-        (define R-post-crash (@check-no-asserts (R f c-reset)))
+        (define R-post-crash (@check-no-asserts (R (if (spec-random spec) (car f) f) c-reset)))
         (define crash-model (if
                              (eqv? R-post-crash #t)
                              (@unsat) ; avoid solver query when possible

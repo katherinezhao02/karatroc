@@ -140,6 +140,7 @@
 (define (update-circuit g circuit)
   (globals (globals-environment g) circuit (globals-meta g) (globals-trng g) (globals-random g) (globals-trng-bit g) (globals-trng-next g)))
 (define (update-trng g)
+  ; (printf "update trng: ~v ~n" (globals-trng g))
   (globals (globals-environment g) (globals-circuit g) (globals-meta g) (cdr (globals-trng g)) (globals-random g) (globals-trng-bit g) (globals-trng-next g)))
 
 (addressable-struct state
@@ -277,15 +278,24 @@
      (case op
        [(tick)
         (let ([circuit* ((meta-step meta) circuit)])
+          ; (printf "trngnext ~v ~n" (get-field ((meta-get-output meta) circuit*) (globals-trng-next globals)))
+          ; (printf "driver asserts: ~v ~n" (vc-asserts (vc)))
           (if (globals-random globals)
-            (if (get-field ((meta-get-output meta) circuit*) (globals-trng-next globals))
-              (cont (void) 
-                (update-circuit 
+            (cond 
+              [(equal? (get-field ((meta-get-output meta) circuit*) (globals-trng-next globals)) #t)
+                ; (printf "driver asserts 0: ~v ~n" (vc-asserts (vc)))
+                (cdr (globals-trng globals))
+                ; (printf "driver asserts 1: ~v ~n" (vc-asserts (vc)))
+               (cont (void) 
+                (let ([c (update-circuit 
                   (update-trng globals)
                   (update-field circuit* 
                     (globals-trng-bit globals) 
-                    (car (globals-trng (update-trng globals))))))
-              (cont (void) (update-circuit globals circuit*))
+                    (car (globals-trng (update-trng globals)))))])
+                ; (printf "driver asserts 2: ~v ~n" (vc-asserts (vc)))
+                c)
+                )]
+              [else (cont (void) (update-circuit globals circuit*))]
               )
             (cont (void) (update-circuit globals circuit*))
           )
