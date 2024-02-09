@@ -155,12 +155,7 @@
     (build-list (spec-max-trng-bits spec) (lambda (i) (@fresh-symbolic 'trng-bit @boolean?))))
   ;; spec
   (define f1 (or override-f1 ((spec-new-symbolic spec))))
-  ; (define f1 
-  ;   (if (random)
-  ;     (state (state-spec f0) trng-state)
-  ;     f0
-  ;     ))
-  ; Idea: if random, instead of state just being spec state, it is a pair of spec state and trng state
+  ; if random, instead of state just being spec state, it is a pair of spec state and trng state
   (define f-result 
     (if (spec-random spec)
       (@check-no-asserts ((@apply spec-fn args) (cons f1 trng-state)) #:discharge-asserts #t)
@@ -188,7 +183,7 @@
   ;; make sure reset line is de-asserted
   (define driver-expr (cons method-name (map (lambda (arg) (list 'quote arg)) args)))
   (define initial-interpreter-state
-    (make-interpreter driver-expr (driver-bindings driver) c1 m trng-state (spec-random spec) (circuit-trng-bit circuit) (circuit-trng-next circuit)))
+    (make-interpreter driver-expr (driver-bindings driver) c1 m trng-state (spec-random spec) (circuit-trng-bit circuit) (circuit-trng-next circuit) ((circuit-trng-valid circuit))))
   (define local-hints (hints (cons method-name args) c1 f1 f-out f2))
   (define inv (meta-invariant m))
   (define precondition (@check-no-asserts (@&& (R f1 c1) (inv c1))))

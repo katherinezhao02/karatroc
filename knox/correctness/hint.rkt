@@ -25,6 +25,7 @@
  (except-out (struct-out remember!) remember!)
  (except-out (struct-out subst!) subst!)
  (except-out (struct-out clear!) clear!)
+ (except-out (struct-out wait-until-valid!) wait-until-valid!)
  (rename-out
   [tactic# tactic]
   [get-state# get-state]
@@ -37,7 +38,8 @@
   [replace!# replace!]
   [remember!# remember!]
   [subst!# subst!]
-  [clear!# clear!])
+  [clear!# clear!]
+  [wait-until-valid!# wait-until-valid!])
  make-hintdb
  extend-hintdb)
 
@@ -216,3 +218,14 @@
   (syntax-parser
     [(_ args ...) #'(clear!-hint args ...)]
     [_ #'clear!-hint]))
+
+(struct wait-until-valid! hint (variable k))
+
+(define (wait-until-valid!-hint [variable #f])
+  (wrap (wait-until-valid! variable)))
+
+(define-match-expander clear!#
+  (syntax-parser [(_ args ...) #'(wait-until-valid! args ...)])
+  (syntax-parser
+    [(_ args ...) #'(wait-until-valid!-hint args ...)]
+    [_ #'wait-until-valid!-hint]))

@@ -17,4 +17,5 @@
    leak ; #f or method descriptor
    random ; if the hsm uses a trng
    max-trng-bits ; max number of random bits used in a method
+   trng-has-valid ; if the trng has a valid bit
    )) 

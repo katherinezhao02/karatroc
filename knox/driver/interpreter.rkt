@@ -135,13 +135,13 @@
 ;; State
 
 (addressable-struct globals
-  (environment circuit meta trng random trng-bit trng-next))
+  (environment circuit meta trng random trng-bit trng-next trng-valid))
 
 (define (update-circuit g circuit)
-  (globals (globals-environment g) circuit (globals-meta g) (globals-trng g) (globals-random g) (globals-trng-bit g) (globals-trng-next g)))
+  (globals (globals-environment g) circuit (globals-meta g) (globals-trng g) (globals-random g) (globals-trng-bit g) (globals-trng-next g) (globals-trng-valid g)))
 (define (update-trng g)
   ; (printf "update trng: ~v ~n" (globals-trng g))
-  (globals (globals-environment g) (globals-circuit g) (globals-meta g) (cdr (globals-trng g)) (globals-random g) (globals-trng-bit g) (globals-trng-next g)))
+  (globals (globals-environment g) (globals-circuit g) (globals-meta g) (cdr (globals-trng g)) (globals-random g) (globals-trng-bit g) (globals-trng-next g) (globals-trng-valid g)))
 
 (addressable-struct state
   (control environment globals continuation))
@@ -275,31 +275,33 @@
      (define op (circuit-op-name f))
      (define circuit (globals-circuit globals))
      (define meta (globals-meta globals))
+     (define update-trng 
+        (and (globals-random globals) 
+                 (equal? (get-field ((meta-get-output meta) circuit) (globals-trng-next globals)) #t)
+                 (or (equal? (globals-trng-valid globals) #f)
+                     (equal? (get-field ((meta-get-output meta) circuit) (globals-trng-valid globals)) #t))))
+     (define circuit-updated 
+        (if (update-trng) 
+            (update-field circuit 
+              (globals-trng-bit globals) 
+              (car (globals-trng (update-trng globals))))
+            circuit))
+     (define globals-updated 
+        (if (update-trng) 
+          (update-circuit (update-trng globals) circuit-updated)
+          globals))
      (case op
        [(tick)
-        (let ([circuit* ((meta-step meta) circuit)])
-          ; (printf "trngnext ~v ~n" (get-field ((meta-get-output meta) circuit*) (globals-trng-next globals)))
-          ; (printf "driver asserts: ~v ~n" (vc-asserts (vc)))
-          (if (globals-random globals)
-            (cond 
-              [(equal? (get-field ((meta-get-output meta) circuit*) (globals-trng-next globals)) #t)
-                ; (printf "driver asserts 0: ~v ~n" (vc-asserts (vc)))
-                (cdr (globals-trng globals))
-                ; (printf "driver asserts 1: ~v ~n" (vc-asserts (vc)))
-               (cont (void) 
-                (let ([c (update-circuit 
-                  (update-trng globals)
-                  (update-field circuit* 
-                    (globals-trng-bit globals) 
-                    (car (globals-trng (update-trng globals)))))])
-                ; (printf "driver asserts 2: ~v ~n" (vc-asserts (vc)))
-                c)
-                )]
-              [else (cont (void) (update-circuit globals circuit*))]
-              )
-            (cont (void) (update-circuit globals circuit*))
-          )
-        )]
+        (let ([circuit* ((meta-step meta) circuit-updated)]
+              [circuit** 
+                (if (not (equal? (globals-trng-valid globals-updated) #f))
+                    (if (equal? (get-field ((meta-get-output meta) circuit) (globals-trng-next globals-updated)) #t)
+                        (update-field circuit* (globals-trng-valid globals-updated) (@fresh-symbolic 'trng-valid @boolean?))
+                        (update-field circuit* (globals-trng-valid globals-updated) #f))
+                    circuit*)]) 
+          (cont (void) (update-circuit globals-updated circuit**))
+        )
+        ]
        [(in)
         (let ([inp ((meta-get-output meta) circuit)])
           (cont inp globals))]
@@ -437,7 +439,7 @@
    ;; output getters
    (map make-op (meta-output-getters metadata))))
 
-(define (make-interpreter expr global-bindings initial-circuit metadata trng random trng-bit trng-next)
+(define (make-interpreter expr global-bindings initial-circuit metadata trng random trng-bit trng-next trng-valid)
   (state expr
          (make-assoc)
          (globals
@@ -447,5 +449,6 @@
           trng
           random
           trng-bit
-          trng-next)
+          trng-next
+          trng-valid)
          (done)))
