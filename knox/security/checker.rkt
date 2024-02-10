@@ -167,14 +167,15 @@
       (define prev-trng-bit (if (spec-random spec) 
         (@get-field ((meta-get-input meta) (pairing-circuit focus-term)) (circuit-trng-bit circuit))
         #f))
-      (define input 
+      (define input (new-symbolic-input))
+      (define circuit-input 
         (if (spec-random spec) 
           (@update-field
-            (new-symbolic-input)
+            input
             (circuit-trng-bit circuit)
             prev-trng-bit) 
-          (new-symbolic-input)))
-      (define c-with-input ((meta-with-input meta) (pairing-circuit focus-term) input))
+          input))
+      (define c-with-input ((meta-with-input meta) (pairing-circuit focus-term) circuit-input))
       (define emulator-with-input (result-state (emulator-interpret `(with-input ',input) (pairing-emulator focus-term) focus-pred)))
       (set! next (cons (set (pairing c-with-input emulator-with-input) focus-pred focus-eq #t focus-trng) (rest next))))
 
