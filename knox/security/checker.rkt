@@ -25,7 +25,8 @@
  (term
   predicate
   equalities
-  ready-to-step))
+  ready-to-step
+  circuit-trng-state))
 
 (define checker%
   (class object%
@@ -66,12 +67,14 @@
 
     (define visited '())
     (define next
-      (let* ([c ((meta-new-symbolic meta))]
+      (let* ([c ((meta-new-symbolic meta))] ;TODO: init trng
              [f ((spec-new-symbolic spec))]
              [p (@&& ((meta-invariant meta) c) (@check-no-asserts (R f c)))]
              [t (build-list (spec-max-trng-bits spec) (lambda (i) (@fresh-symbolic 'trng-bit @boolean?)))]
+             [c* (if (spec-random spec) (@update-field c (circuit-trng-bit circuit) (car t)) c)]
              [emu (result-state (emulator-interpret '(init) (emulator:state #f (if (spec-random spec) (cons f t) f)) p))])
-        (list (set (pairing c emu) p (hasheq) #f))))
+        (printf "trng ~v ~n" t)
+        (list (set (pairing c* emu) p (hasheq) #f t))))
 
     (define checks-disabled #f)
     (define checks-ever-disabled #f)
@@ -106,49 +109,49 @@
       (apply @&& (for/list ([(k v) (in-hash eqt)]) (@equal? k v))))
 
     (define/public (concretize! lens #:use-equalities [use-equalities #f] #:piecewise [piecewise #f])
-      (match-define (set focus-term focus-pred focus-eq focus-ready) (first next))
+      (match-define (set focus-term focus-pred focus-eq focus-ready focus-trng) (first next))
       (define effective-pred (if use-equalities
                                  (@&& focus-pred (equalities->bool focus-eq))
                                  focus-pred))
       (define focus-term*
         (@lens-transform lens focus-term (lambda (view) (@concretize view effective-pred #:piecewise piecewise))))
-      (set! next (cons (set focus-term* focus-pred focus-eq focus-ready) (rest next))))
+      (set! next (cons (set focus-term* focus-pred focus-eq focus-ready focus-trng) (rest next))))
 
     (define/public (overapproximate! lens)
-      (match-define (set focus-term focus-pred focus-eq focus-ready) (first next))
+      (match-define (set focus-term focus-pred focus-eq focus-ready focus-trng) (first next))
       (define focus-term*
         (@lens-transform lens focus-term (lambda (view) (@overapproximate view))))
-      (set! next (cons (set focus-term* focus-pred focus-eq focus-ready) (rest next))))
+      (set! next (cons (set focus-term* focus-pred focus-eq focus-ready focus-trng) (rest next))))
 
     ;; lets the caller specify what to replace terms with, but we do a subsumption check
     (define/public (overapproximate*! lens view)
-      (match-define (set focus-term focus-pred focus-eq focus-ready) (first next))
+      (match-define (set focus-term focus-pred focus-eq focus-ready focus-trng) (first next))
       (define focus-term* (@lens-set lens focus-term view))
       (define effective-pred (@&& focus-pred (equalities->bool focus-eq)))
       (unless (or checks-disabled (@subsumed? #f focus-term effective-pred focus-term* effective-pred))
         (error 'overapproximate*! "subsumption check failed"))
-      (set! next (cons (set focus-term* focus-pred focus-eq focus-ready) (rest next))))
+      (set! next (cons (set focus-term* focus-pred focus-eq focus-ready focus-trng) (rest next))))
 
     (define/public (overapproximate-predicate! p #:use-equalities [use-equalities #f])
-      (match-define (set focus-term focus-pred focus-eq focus-ready) (first next))
+      (match-define (set focus-term focus-pred focus-eq focus-ready focus-trng) (first next))
       (define effective-pred (if use-equalities
                                  (@&& focus-pred (equalities->bool focus-eq))
                                  focus-pred))
       (unless (or checks-disabled (@unsat? (@verify (@assert (@implies effective-pred p)))))
         (error 'overapproximate-predicate! "failed to prove implication of new predicate"))
-      (set! next (cons (set focus-term p focus-eq focus-ready) (rest next))))
+      (set! next (cons (set focus-term p focus-eq focus-ready focus-trng) (rest next))))
 
     ;; proof by subsumption
     (define/public (overapproximate-predicate*! p)
-      (match-define (set focus-term focus-pred focus-eq focus-ready) (first next))
+      (match-define (set focus-term focus-pred focus-eq focus-ready focus-trng) (first next))
       (define effective-pred (@&& focus-pred (equalities->bool focus-eq)))
       (define effective-new-pred (@&& p (equalities->bool focus-eq)))
       (unless (or checks-disabled (@subsumed? #f focus-term effective-pred focus-term effective-new-pred))
         (error 'overapproximate-predicate*! "subsumption check failed"))
-      (set! next (cons (set focus-term p focus-eq focus-ready) (rest next))))
+      (set! next (cons (set focus-term p focus-eq focus-ready focus-trng) (rest next))))
 
     (define/public (replace! lens view #:use-equalities [use-equalities #f])
-      (match-define (set focus-term focus-pred focus-eq focus-ready) (first next))
+      (match-define (set focus-term focus-pred focus-eq focus-ready focus-trng) (first next))
       (define current-view (@lens-view lens focus-term))
       (define effective-pred (if use-equalities
                                  (@&& focus-pred (equalities->bool focus-eq))
@@ -156,20 +159,29 @@
       (unless (or checks-disabled (@unsat? (@verify (@begin (@assume effective-pred) (@assert (@equal? current-view view))))))
         (error 'replace! "failed to prove equality"))
       (define focus-term* (@lens-set lens focus-term view))
-      (set! next (cons (set focus-term* focus-pred focus-eq focus-ready) (rest next))))
+      (set! next (cons (set focus-term* focus-pred focus-eq focus-ready focus-trng) (rest next))))
 
     ;; gives circuit/emu new inputs
     (define/public (prepare!)
-      (match-define (set focus-term focus-pred focus-eq focus-ready) (first next))
-      (define input (new-symbolic-input))
+      (match-define (set focus-term focus-pred focus-eq focus-ready focus-trng) (first next))
+      (define prev-trng-bit (if (spec-random spec) 
+        (@get-field ((meta-get-input meta) (pairing-circuit focus-term)) (circuit-trng-bit circuit))
+        #f))
+      (define input 
+        (if (spec-random spec) 
+          (@update-field
+            (new-symbolic-input)
+            (circuit-trng-bit circuit)
+            prev-trng-bit) 
+          (new-symbolic-input)))
       (define c-with-input ((meta-with-input meta) (pairing-circuit focus-term) input))
       (define emulator-with-input (result-state (emulator-interpret `(with-input ',input) (pairing-emulator focus-term) focus-pred)))
-      (set! next (cons (set (pairing c-with-input emulator-with-input) focus-pred focus-eq #t) (rest next))))
+      (set! next (cons (set (pairing c-with-input emulator-with-input) focus-pred focus-eq #t focus-trng) (rest next))))
 
     (define/public (step!)
       (unless (set-ready-to-step (first next))
         (prepare!))
-      (match-define (set focus-term focus-pred focus-eq focus-ready) (first next))
+      (match-define (set focus-term focus-pred focus-eq focus-ready focus-trng) (first next))
       ;; check that outputs match
       (match-define (pairing c-with-input emulator-with-input) focus-term)
       ;; not making use of focus-eq in assumption
@@ -187,7 +199,7 @@
           (error 'step! "output mismatch between circuit and emulator")))
       ;; check crash/reset/recovery
       (unless checks-disabled
-        (define c-reset (circuit-crash+power-on-reset (pairing-circuit focus-term)))
+        (define c-reset (circuit-crash+power-on-reset (pairing-circuit focus-term))) 
         (define f (emulator:state-oracle (pairing-emulator focus-term)))
         (define R-post-crash (@check-no-asserts (R (if (spec-random spec) (car f) f) c-reset)))
         (define crash-model (if
@@ -200,20 +212,30 @@
           (println (@evaluate f crash-model))
           (println (@evaluate c-reset crash-model))
           (error 'step! "recovery condition does not hold")))
+      (define c-stepped-0 ((meta-step meta) c-with-input))
+      (define update-trng (and (spec-random spec) (@get-field ((meta-get-output meta) c-stepped-0) (circuit-trng-next circuit))))
+      (define c-trng-stepped (if update-trng (cdr focus-trng) focus-trng))
+      (define c-stepped 
+        (if update-trng 
+          (@update-field c-stepped-0 
+                    (circuit-trng-bit circuit) 
+                    (car c-trng-stepped)) 
+          c-stepped-0))
       (define stepped
         (set
          (pairing
-          ((meta-step meta) c-with-input)
+          c-stepped
           (result-state (emulator-interpret '(step) emulator-with-input focus-pred)))
          focus-pred
          focus-eq
-         #f))
+         #f
+         c-trng-stepped))
       (prepare!)
       (set! visited (cons (first next) visited))
       (set! next (cons stepped (rest next))))
 
     (define/public (cases! preds #:use-equalities [use-equalities #f])
-      (match-define (set focus-term focus-pred focus-eq focus-ready) (first next))
+      (match-define (set focus-term focus-pred focus-eq focus-ready focus-trng) (first next))
       (define preds* (map (lambda (p) (@&& focus-pred p)) preds))
       (define any-split (apply @|| preds*))
       (define effective-pred (if use-equalities
@@ -221,7 +243,7 @@
                                  focus-pred))
       (unless (or checks-disabled (@unsat? (@verify (@assert (@implies effective-pred any-split)))))
         (error 'cases! "failed to prove exhaustiveness"))
-      (define new (map (lambda (p) (set focus-term p focus-eq focus-ready)) preds*))
+      (define new (map (lambda (p) (set focus-term p focus-eq focus-ready focus-trng)) preds*))
       (set! next (append new (rest next))))
 
     (define/public (admit!)
@@ -235,18 +257,21 @@
       ;; we call prepare here because (step!) doesn't replace the inputs with new ones
       ;; and our circuit rep includes the inputs (which shouldn't really be compared)
       (prepare!)
-      (match-define (set focus-term focus-pred focus-eq focus-ready) (first next))
+      (match-define (set focus-term focus-pred focus-eq focus-ready focus-trng) (first next))
       (define focus-effective-pred (@&& focus-pred (equalities->bool focus-eq)))
       (define idx (- (length visited) pos 1))
-      (match-define (set ref-term ref-pred ref-eq ref-ready) (list-ref visited idx))
+      (match-define (set ref-term ref-pred ref-eq ref-ready ref-trng) (list-ref visited idx))
       (define ref-effective-pred (@&& ref-pred (equalities->bool ref-eq)))
+      ; (define lens (@lens 'emulator 'auxiliary (list 'trng_bit)))
+      ; (define ref-term*
+      ;   (@lens-transform lens ref-term (lambda (view) (@overapproximate view))))
       (unless (or checks-disabled (@subsumed? #f focus-term focus-effective-pred ref-term ref-effective-pred))
         (error 'subsumed! "subsumption check failed"))
       ;; now, we can just discard the currently focused term
       (set! next (rest next)))
 
     (define/public (remember! lens [name #f])
-      (match-define (set focus-term focus-pred focus-eq focus-ready) (first next))
+      (match-define (set focus-term focus-pred focus-eq focus-ready focus-trng) (first next))
       (define current-view (@lens-view lens focus-term))
       (define current-type (@type-of current-view))
       (when (not (@solvable? current-type))
@@ -254,11 +279,11 @@
       (define new-var (@fresh-symbolic (or name '||) current-type))
       (define focus-term* (@lens-set lens focus-term new-var))
       (define focus-eq* (hash-set focus-eq new-var current-view))
-      (set! next (cons (set focus-term* focus-pred focus-eq* focus-ready) (rest next)))
+      (set! next (cons (set focus-term* focus-pred focus-eq* focus-ready focus-trng) (rest next)))
       new-var)
 
     (define/public (remember+! lenses [name #f])
-      (match-define (set focus-term focus-pred focus-eq focus-ready) (first next))
+      (match-define (set focus-term focus-pred focus-eq focus-ready focus-trng) (first next))
       (define current-view (@lens-view (first lenses) focus-term))
       (define current-type (@type-of current-view))
       (when (not (@solvable? current-type))
@@ -274,16 +299,16 @@
                   ([l lenses])
           (@lens-set l t new-var)))
       (define focus-eq* (hash-set focus-eq new-var current-view))
-      (set! next (cons (set focus-term* focus-pred focus-eq* focus-ready) (rest next)))
+      (set! next (cons (set focus-term* focus-pred focus-eq* focus-ready focus-trng) (rest next)))
       new-var)
 
     ;; if var is not given, clears everything
     (define/public (clear! [var #f])
-      (match-define (set focus-term focus-pred focus-eq focus-ready) (first next))
+      (match-define (set focus-term focus-pred focus-eq focus-ready focus-trng) (first next))
       (define focus-eq* (if var
                             (hash-remove focus-eq var)
                             (hasheq)))
-      (set! next (cons (set focus-term focus-pred focus-eq* focus-ready) (rest next))))
+      (set! next (cons (set focus-term focus-pred focus-eq* focus-ready focus-trng) (rest next))))
 
     ;; this only substitutes into the term, not into existing
     ;; equalities (though we could add another tactic for that if it's
@@ -292,10 +317,10 @@
     ;; when var is not given, substitutes all equalities
     ;; when lens is not given, substitutes in entire term (but not predicate or equalities)
     (define/public (subst! [lens @identity-lens] #:var [var #f])
-      (match-define (set focus-term focus-pred focus-eq focus-ready) (first next))
+      (match-define (set focus-term focus-pred focus-eq focus-ready focus-trng) (first next))
       (define focus-term*
         (@lens-transform lens focus-term (lambda (view)
                                            (if var
                                                (@substitute view var (hash-ref focus-eq var))
                                                (@substitute-terms view focus-eq)))))
-      (set! next (cons (set focus-term* focus-pred focus-eq focus-ready) (rest next))))))
+      (set! next (cons (set focus-term* focus-pred focus-eq focus-ready focus-trng) (rest next))))))
