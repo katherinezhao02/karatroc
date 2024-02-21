@@ -149,27 +149,21 @@
             (for/list ([el type]
                        [i (in-naturals)])
               (@fresh-symbolic (format "~a[~a]" (symbol->string (argument-name arg)) i) el))
-            (@fresh-symbolic (argument-name arg) (argument-type arg)))))) ;;if name is trng-state replace
+            (@fresh-symbolic (argument-name arg) (argument-type arg)))))) 
   ;; trng
   (define trng-state
     (build-list (spec-max-trng-bits spec) (lambda (i) (@fresh-symbolic 'trng-bit @boolean?))))
   ;; spec
   (define f1 (or override-f1 ((spec-new-symbolic spec))))
-  ; (define f1 
-  ;   (if (random)
-  ;     (state (state-spec f0) trng-state)
-  ;     f0
-  ;     ))
-  ; Idea: if random, instead of state just being spec state, it is a pair of spec state and trng state
   (define f-result 
     (if (spec-random spec)
-      (@check-no-asserts ((@apply spec-fn args) (cons f1 trng-state)) #:discharge-asserts #t)
+      (@check-no-asserts ((@apply spec-fn args) (rstate f1 trng-state)) #:discharge-asserts #t)
       (@check-no-asserts ((@apply spec-fn args) f1) #:discharge-asserts #t)))
   (define f-out (result-value f-result))
   (define f-state (result-state f-result))
   (define f2 
     (if (spec-random spec)
-      (car (result-state f-result))
+      (rstate-spec (result-state f-result))
       (result-state f-result)
       ))
   ;; circuit
@@ -217,7 +211,7 @@
         (@assume pc)
         (@assert (@equal? f-out c-out))
         (if (spec-random spec)
-          (@assert (@equal? (cdr f-state) c-trng))
+          (@assert (@equal? (rstate-trng f-state) c-trng))
           (void))
         (@assert (R f2 c2)))))
     (cond
@@ -228,7 +222,7 @@
        (eprintf "failed to verify ~a\n" method-name)
        (cond [(spec-random spec) 
         (eprintf "trng-state = ~v\n" (@evaluate trng-state sol))
-        (eprintf "f-trng = ~v\n" (cdr (@evaluate f-state sol)))
+        (eprintf "f-trng = ~v\n" (rstate-trng (@evaluate f-state sol)))
         (eprintf "c-trng = ~v\n" (@evaluate c-trng sol))]) 
        (eprintf "c1 = ~v\n" (@evaluate c1 sol))
        (eprintf "f1 = ~v\n" (@evaluate f1 sol))

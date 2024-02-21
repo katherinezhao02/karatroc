@@ -2,6 +2,7 @@
 
 (require
  "checker.rkt"
+ "../result.rkt"
  (only-in racket/class new send)
  (prefix-in @ (combine-in rosette/safe rosutil))
  (for-syntax racket/base racket/syntax syntax/parse))
@@ -12,7 +13,8 @@
   #%module-begin)
  (rename-out [$#%module-begin #%module-begin])
  (struct-out pairing)
- (struct-out set))
+ (struct-out set)
+ (all-from-out "../result.rkt"))
 
 (define-syntax ($#%module-begin stx)
   (syntax-parse stx
@@ -63,6 +65,7 @@
                         'overapproximate-predicate!
                         'overapproximate-predicate*!
                         'replace!
+                        'replace-circuit-trng!
                         'prepare!
                         'step!
                         'cases!
