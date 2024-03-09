@@ -16,5 +16,5 @@
    methods ; list of method-descriptor
    leak ; #f or method descriptor
    random ; if the hsm uses a trng
-   max-trng-bits ; max number of random bits used in a method
+   max-trng-words ; max number of random bits used in a method
    )) 

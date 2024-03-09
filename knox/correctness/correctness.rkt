@@ -151,13 +151,15 @@
               (@fresh-symbolic (format "~a[~a]" (symbol->string (argument-name arg)) i) el))
             (@fresh-symbolic (argument-name arg) (argument-type arg)))))) 
   ;; trng
-  (define trng-state
-    (build-list (spec-max-trng-bits spec) (lambda (i) (@fresh-symbolic 'trng-bit @boolean?))))
+  (define trng-words-state
+    (build-list (spec-max-trng-words spec) (lambda (i) (@fresh-symbolic 'trng-word (@bitvector 4)))))
+  (define trng-valid-state
+    (build-list (spec-max-trng-words spec) (lambda (i) (@fresh-symbolic 'trng-delay integer?))))
   ;; spec
   (define f1 (or override-f1 ((spec-new-symbolic spec))))
   (define f-result 
     (if (spec-random spec)
-      (@check-no-asserts ((@apply spec-fn args) (rstate f1 trng-state)) #:discharge-asserts #t)
+      (@check-no-asserts ((@apply spec-fn args) (rstate f1 trng-words-state)) #:discharge-asserts #t)
       (@check-no-asserts ((@apply spec-fn args) f1) #:discharge-asserts #t)))
   (define f-out (result-value f-result))
   (define f-state (result-state f-result))
@@ -168,21 +170,17 @@
       ))
   ;; circuit
   (define m (circuit-meta circuit))
-  (define c0 (@update-fields (or override-c1 ((meta-new-symbolic m)))
+  (define c1 (@update-fields (or override-c1 ((meta-new-symbolic m)))
                              (cons
                               ;; reset is de-asserted
                               (cons (circuit-reset-input-name circuit)
                                     (not (circuit-reset-input-signal circuit)))
                               ;; other inputs are idle
                               (driver-idle driver))))
-  (define c1 
-    (if (spec-random spec)
-      (@update-field c0 (circuit-trng-bit circuit) (car trng-state))
-      c0)) ;; set the first value
   ;; make sure reset line is de-asserted
   (define driver-expr (cons method-name (map (lambda (arg) (list 'quote arg)) args)))
   (define initial-interpreter-state
-    (make-interpreter driver-expr (driver-bindings driver) c1 m trng-state (spec-random spec) (circuit-trng-bit circuit) (circuit-trng-next circuit)))
+    (make-interpreter driver-expr (driver-bindings driver) c1 m trng-words-state trng-valid-state (spec-random spec) (circuit-trng-word circuit) (circuit-trng-req circuit) (circuit-trng-valid circuit)))
   (define local-hints (hints (cons method-name args) c1 f1 f-out f2))
   (define inv (meta-invariant m))
   (define precondition (@check-no-asserts (@&& (R f1 c1) (inv c1))))
@@ -203,7 +201,7 @@
     (define c-result (checker-state-interpreter f))
     (define c-out (finished-value c-result))
     (define c2 (finished-circuit c-result))
-    (define c-trng (finished-trng c-result))
+    (define c-trng (finished-trng c-result)) 
     (define res
       (@verify
        (@begin
@@ -218,10 +216,11 @@
       [(@unsat? res) (void)] ; verified
       [(@unknown? res) (error 'verify-method "~a: solver timeout" method-name)]
       [verbose
-       (define sol (@complete-solution res (@symbolics (@list args f1 f-out f-state f2 c1 c-out c2 c-trng trng-state))))
+       (define sol (@complete-solution res (@symbolics (@list args f1 f-out f-state f2 c1 c-out c2 c-trng trng-words-state trng-valid-state))))
        (eprintf "failed to verify ~a\n" method-name)
        (cond [(spec-random spec) 
-        (eprintf "trng-state = ~v\n" (@evaluate trng-state sol))
+        (eprintf "trng-words-state = ~v\n" (@evaluate trng-words-state sol))
+        (eprintf "trng-valid-state = ~v\n" (@evaluate trng-valid-state sol))
         (eprintf "f-trng = ~v\n" (rstate-trng (@evaluate f-state sol)))
         (eprintf "c-trng = ~v\n" (@evaluate c-trng sol))]) 
        (eprintf "c1 = ~v\n" (@evaluate c1 sol))
