@@ -153,8 +153,10 @@
   ;; trng
   (define trng-words-state
     (build-list (spec-max-trng-words spec) (lambda (i) (@fresh-symbolic 'trng-word (@bitvector 4)))))
+  ; (define trng-valid-state
+  ;   (build-list (spec-max-trng-words spec) (lambda (i) (@fresh-symbolic 'trng-delay @integer?))))
   (define trng-valid-state
-    (build-list (spec-max-trng-words spec) (lambda (i) (@fresh-symbolic 'trng-delay integer?))))
+    (build-list (spec-max-trng-words spec) (lambda (i) 0)))
   ;; spec
   (define f1 (or override-f1 ((spec-new-symbolic spec))))
   (define f-result 

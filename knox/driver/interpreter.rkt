@@ -300,24 +300,29 @@
      (define meta (globals-meta globals))
      (case op
        [(tick)
+        (printf "here ~v ~v ~n" (valid-ready globals) (get-field ((meta-get-output meta) circuit) (trng-registers-req (globals-trng-registers globals))))
         (let* (
           ;; Updates circuit according to trng state before stepping
           [circuit* (cond 
             [(not (globals-random globals)) circuit] ;; not random
             [(and (get-field ((meta-get-output meta) circuit) (trng-registers-req (globals-trng-registers globals)))
-                  (valid-ready globals)) 
+                  (valid-ready globals))
+                  (printf "here3~n") 
               (update-fields circuit 
                 (cons 
                   (cons (trng-registers-word (globals-trng-registers globals)) (car (trng-state-words (globals-trng-state (update-trng-state globals)))))
                   (cons (trng-registers-valid (globals-trng-registers globals)) #t)
                 )) ] ;; trng_req is true and trng valid state is true
-            [(valid-ready globals)
+            [(and (not (get-field ((meta-get-output meta) circuit) (trng-registers-req (globals-trng-registers globals))))
+                  (valid-ready globals))
+              (printf "here4~n")
               (update-fields circuit 
                 (cons 
                   (cons (trng-registers-word (globals-trng-registers globals)) (bv 0 4)) ;;TODO: change so that user can input word length
                   (cons (trng-registers-valid (globals-trng-registers globals)) #t)
                 )) ] ;; trng_req is false and trng valid state is true
             [else 
+              (printf "here5~n")
               (update-fields circuit 
                 (cons 
                   (cons (trng-registers-word (globals-trng-registers globals)) (bv 0 4)) ;;TODO: change so that user can input word length
@@ -328,15 +333,17 @@
           [globals* (cond
             [(not (globals-random globals)) globals] ;; not random
             [(and (get-field ((meta-get-output meta) circuit) (trng-registers-req (globals-trng-registers globals)))
-                  (valid-ready globals)) 
+                  (valid-ready globals)) (printf "here6~n") 
               (update-trng-state globals) ] ;; trng_req is true and trng valid state is true
-            [(valid-ready globals) globals] ;; trng_req is false and trng valid state is true
+            [(and (not (get-field ((meta-get-output meta) circuit) (trng-registers-req (globals-trng-registers globals))))
+                  (valid-ready globals)) (printf "here7~n") globals] ;; trng_req is false and trng valid state is true
             [else 
               (update-trng-valid globals) ] ;; trng valid state is false
             )]
           [circuit** ((meta-step meta) circuit*)])
           ; (printf "trngnext ~v ~n" (get-field ((meta-get-output meta) circuit*) (globals-trng-next globals)))
           ; (printf "driver asserts: ~v ~n" (vc-asserts (vc)))
+          (printf "here2~n")
           (cont (void) (update-circuit globals* circuit**))
         )]
        [(in)
