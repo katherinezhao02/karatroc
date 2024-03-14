@@ -150,6 +150,46 @@
                        (execution st* (protected-evaluate-to-next-hint k))))
                    working))
             (dprintf "info: yielded, now have ~a threads, ~a waiting~n" (length working) (length waiting))])]
+        [(wait-trng)
+            (unless (fixpoint? hint)
+              (error 'handle-hypercall! "argument to wait-trng must be a fixpoint hint"))
+            (define ckt (interp:globals-circuit globals))
+            (define metadata (interp:globals-meta globals))
+            ;; set valid=0, word=0 before stepping
+            (define (ckt-step c)
+              ((yosys:meta-step metadata) 
+                (@update-fields c
+                  (list 
+                    (cons (interp:trng-registers-word (interp:globals-trng-registers globals)) (@bv 0 4))
+                    (cons (interp:trng-registers-valid (interp:globals-trng-registers globals)) #f)
+                  )))) 
+            (match-define (fixpoint setup auto len step-concretize-lens use-pc piecewise step-overapproximate-lens k) hint)
+            (define fp
+              (compute-fixpoint
+               pc
+               (@&& pc (equalities->bool equalities))
+               ckt-step
+               ckt
+               setup
+               auto
+               len
+               step-concretize-lens
+               use-pc
+               piecewise
+               step-overapproximate-lens))
+            ;; step (interpreter) once more to advance past the call
+            (define st1* (@check-no-asserts (interp:step ist) #:assumes pc))
+            ;; Set next delay to be 0
+            (define st1 (update-state-valid st1*))
+            (check-crash-condition pc (interp:globals-circuit (interp:state-globals st1)))
+            ;; make one state for every point in fp, put back on working list
+            (set! working
+                  (append
+                   (for/list ([ckt fp])
+                     (let ([st* (state (update-state-circuit st1 ckt) pc equalities)])
+                       (execution st* (protected-evaluate-to-next-hint k))))
+                   working))
+            (dprintf "info: waited for trng, now have ~a threads, ~a waiting~n" (length working) (length waiting))]
         [(hint)
          ;; don't actually do anything here, just remember that we need to apply the hint next, and
          ;; step once more to advance past the call
@@ -433,7 +473,18 @@
        (interp:state-environment st)
        (interp:update-circuit (interp:state-globals st) ckt)
        (interp:state-continuation st))
-      (interp:finished (interp:finished-value st) ckt)))
+      (interp:finished (interp:finished-value st) ckt (interp:finished-trng st))))
+
+(define (update-state-valid st)
+  (if (interp:state? st)
+      (interp:state
+       (interp:state-control st)
+       (interp:state-environment st)
+       (interp:zero-valid (interp:state-globals st))
+       (interp:state-continuation st))
+      st))
+
+; TODO: do the same thing with updating trng state after fixpoint done
 
 (define (equalities->bool eqt)
   (apply @&& (for/list ([(k v) (in-hash eqt)]) (@equal? k v))))

@@ -17,18 +17,19 @@
 
 (provide
  basic-value? uninterpreted?
- make-interpreter step run run* show closure update-circuit
+ make-interpreter step run run* show closure update-circuit zero-valid
  make-assoc assoc-contains assoc-lookup assoc-remove assoc-extend assoc-extend*
  (struct-out finished)
  (struct-out state)
- (struct-out globals))
+ (struct-out globals)
+ (struct-out trng-registers))
 
 (struct builtin
   (name)
   #:transparent)
 
 (define (uninterpreted? expr)
-  (member (tag expr) '(yield hint)))
+  (member (tag expr) '(yield wait-trng hint)))
 
 ;; Values
 ;;
@@ -158,7 +159,15 @@
 (define (update-trng-valid g)
   (globals (globals-environment g) (globals-circuit g) (globals-meta g) (globals-random g) (globals-trng-registers g)
     (trng-state (trng-state-words (globals-trng-state g)) 
-      (cons (max (- (car (trng-state-valid (globals-trng-state g))) 1) 0) (cdr (trng-state-valid (globals-trng-state g))))
+      (cons (- (car (trng-state-valid (globals-trng-state g))) 1) (cdr (trng-state-valid (globals-trng-state g))))
+      )
+    )
+  )
+
+(define (zero-valid g)
+  (globals (globals-environment g) (globals-circuit g) (globals-meta g) (globals-random g) (globals-trng-registers g)
+    (trng-state (trng-state-words (globals-trng-state g)) 
+      (cons 0 (cdr (trng-state-valid (globals-trng-state g))))
       )
     )
   )
