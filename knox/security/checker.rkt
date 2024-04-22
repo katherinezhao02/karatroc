@@ -67,13 +67,12 @@
 
     (define visited '())
     (define next
-      (let* ([c ((meta-new-symbolic meta))] ;TODO: init trng
+      (let* ([c ((meta-new-symbolic meta))] 
              [f ((spec-new-symbolic spec))]
              [p (@&& ((meta-invariant meta) c) (@check-no-asserts (R f c)))]
-             [t (build-list (spec-max-trng-bits spec) (lambda (i) (@fresh-symbolic 'trng-bit @boolean?)))]
-             [c* (if (spec-random spec) (@update-field c (circuit-trng-bit circuit) (car t)) c)]
+             [t (build-list (spec-max-trng-words spec) (lambda (i) (@fresh-symbolic 'trng-word (@bitvector (spec-trng-word-length spec)))))] ; TODO: specify size
              [emu (result-state (emulator-interpret '(init) (emulator:state #f (if (spec-random spec) (rstate f t) f)) p))])
-        (list (set (pairing c* emu) p (hasheq) #f t))))
+        (list (set (pairing c emu) p (hasheq) #f t))))
 
     (define checks-disabled #f)
     (define checks-ever-disabled #f)
@@ -172,18 +171,18 @@
     ;; gives circuit/emu new inputs
     (define/public (prepare!)
       (match-define (set focus-term focus-pred focus-eq focus-ready focus-trng) (first next))
-      (define prev-trng-bit (@if (spec-random spec) 
-        (@get-field ((meta-get-input meta) (pairing-circuit focus-term)) (circuit-trng-bit circuit))
-        #f))
+      ; (define prev-trng-bit (@if (spec-random spec) 
+      ;   (@get-field ((meta-get-input meta) (pairing-circuit focus-term)) (circuit-trng-bit circuit))
+      ;   #f))
       (define input (new-symbolic-input))
-      (define circuit-input 
-        (@if (spec-random spec) 
-          (@update-field
-            input
-            (circuit-trng-bit circuit)
-            prev-trng-bit) 
-          input))
-      (define c-with-input ((meta-with-input meta) (pairing-circuit focus-term) circuit-input))
+      ; (define circuit-input 
+      ;   (@if (spec-random spec) 
+      ;     (@update-field
+      ;       input
+      ;       (circuit-trng-bit circuit)
+      ;       prev-trng-bit) 
+      ;     input))
+      (define c-with-input ((meta-with-input meta) (pairing-circuit focus-term) input))
       (define emulator-with-input (result-state (emulator-interpret `(with-input ',input) (pairing-emulator focus-term) focus-pred)))
       (set! next (cons (set (pairing c-with-input emulator-with-input) focus-pred focus-eq #t focus-trng) (rest next))))
 
@@ -197,6 +196,7 @@
       (unless checks-disabled
         (define c-out ((meta-get-output meta) c-with-input))
         (match-define (result emulator-out emulator-after-out) (emulator-interpret '(get-output) emulator-with-input focus-pred))
+        ; (printf "emulator-with-input ~v~n" emulator-with-input)
         (set! emulator-with-input emulator-after-out) ; in case the emulator updates state / calls the oracle as part of get-output
         (define outputs-equal (@equal? c-out emulator-out))
         ; (printf "c-out ~v~n" c-out)
@@ -221,22 +221,48 @@
           (println (@evaluate f crash-model))
           (println (@evaluate c-reset crash-model))
           (error 'step! "recovery condition does not hold")))
-      (define c-stepped-0 ((meta-step meta) c-with-input))
-      (define update-trng (@and (spec-random spec) (@get-field ((meta-get-output meta) c-stepped-0) (circuit-trng-next circuit))))
-      (define c-trng-stepped (@if update-trng (cdr focus-trng) focus-trng))
+      ; (printf "here~n")
+      ; (printf "trng valid ~v ~n" (@get-field ((meta-get-input meta) c-with-input) (circuit-trng-valid circuit)))
+      (define new-trng-word 
+        (@if 
+          (@and 
+            (spec-random spec)
+            (@get-field ((meta-get-output meta) c-with-input) (circuit-trng-req circuit))
+            (@get-field ((meta-get-input meta) c-with-input) (circuit-trng-valid circuit)))
+          (car focus-trng)
+          (@bv 0 4)
+        ))
+      (define c-trng-updated (@if (spec-random spec) 
+        (@update-field c-with-input (circuit-trng-word circuit) new-trng-word)
+        c-with-input
+        )
+      )
+      (define c-trng-stepped 
+        (@if 
+          (@and (spec-random spec)
+            (@get-field ((meta-get-output meta) c-with-input) (circuit-trng-req circuit))
+            (@get-field ((meta-get-input meta) c-with-input) (circuit-trng-valid circuit)))
+             (cdr focus-trng) 
+             focus-trng))
+      ; (define c-stepped-0 ((meta-step meta) c-with-input))
+      ; (define update-trng (@and (spec-random spec) (@get-field ((meta-get-output meta) c-stepped-0) (circuit-trng-next circuit))))
+      ; (define c-trng-stepped (@if update-trng (cdr focus-trng) focus-trng))
       ; (printf "focus trng state ~v ~n" focus-trng)
       ; (printf "new trng state ~v ~n" c-trng-stepped)
-      (define new-trng-bit (@if update-trng (car (cdr focus-trng)) #f))
-      (define c-stepped 
-        (@if update-trng 
-          (@update-field c-stepped-0 
-                    (circuit-trng-bit circuit) 
-                    new-trng-bit) 
-          c-stepped-0))
+      ; (define new-trng-bit (@if update-trng (car (cdr focus-trng)) #f))
+      ; (define c-stepped 
+      ;   (@if update-trng 
+      ;     (@update-field c-stepped-0 
+      ;               (circuit-trng-bit circuit) 
+      ;               new-trng-bit) 
+      ;     c-stepped-0))
+      ; (printf "here2 ~v ~n" (pairing
+          ; ((meta-step meta) c-trng-updated)
+          ; (result-state (emulator-interpret '(step) emulator-with-input focus-pred))))
       (define stepped
         (set
          (pairing
-          c-stepped
+          ((meta-step meta) c-trng-updated)
           (result-state (emulator-interpret '(step) emulator-with-input focus-pred)))
          focus-pred
          focus-eq
@@ -286,6 +312,15 @@
         (if (spec-random spec) 
             (pairing (pairing-circuit ref-term) (emulator:state ref-aux (rstate-spec ref-oracle)))
             ref-term)) ; Removes the trng state 
+      (unless (or checks-disabled (@subsumed? #f (rstate-spec focus-oracle) focus-effective-pred (rstate-spec ref-oracle) ref-effective-pred))
+        (error 'subsumed! "subsumption check failed"))
+      (printf "sumsumption of emulator oracle done ~n")
+      (unless (or checks-disabled (@subsumed? #f (pairing-circuit focus-term) focus-effective-pred (pairing-circuit ref-term) ref-effective-pred))
+        (error 'subsumed! "subsumption check failed"))
+      (printf "sumsumption of circuit done ~n")
+      (unless (or checks-disabled (@subsumed? #f focus-aux focus-effective-pred ref-aux ref-effective-pred))
+        (error 'subsumed! "subsumption check failed"))
+      (printf "sumsumption of emulator aux done ~n")
       (unless (or checks-disabled (@subsumed? #f focus-term* focus-effective-pred ref-term* ref-effective-pred))
         (error 'subsumed! "subsumption check failed"))
       ;; now, we can just discard the currently focused term

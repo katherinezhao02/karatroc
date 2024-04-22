@@ -152,11 +152,11 @@
             (@fresh-symbolic (argument-name arg) (argument-type arg)))))) 
   ;; trng
   (define trng-words-state
-    (build-list (spec-max-trng-words spec) (lambda (i) (@fresh-symbolic 'trng-word (@bitvector 4)))))
+    (build-list (spec-max-trng-words spec) (lambda (i) (@fresh-symbolic 'trng-word (@bitvector (spec-trng-word-length spec))))))
   (define trng-valid-state
     (build-list (spec-max-trng-words spec) (lambda (i) (@fresh-symbolic 'trng-delay @integer?))))
   ; (define trng-valid-state
-  ;   (build-list (spec-max-trng-words spec) (lambda (i) 1)))
+  ;   (build-list (spec-max-trng-words spec) (lambda (i) 0)))
   ;; spec
   (define f1 (or override-f1 ((spec-new-symbolic spec))))
   (define f-result 
@@ -182,7 +182,7 @@
   ;; make sure reset line is de-asserted
   (define driver-expr (cons method-name (map (lambda (arg) (list 'quote arg)) args)))
   (define initial-interpreter-state
-    (make-interpreter driver-expr (driver-bindings driver) c1 m trng-words-state trng-valid-state (spec-random spec) (circuit-trng-word circuit) (circuit-trng-req circuit) (circuit-trng-valid circuit)))
+    (make-interpreter driver-expr (driver-bindings driver) c1 m trng-words-state trng-valid-state (spec-random spec) (spec-trng-word-length spec) (circuit-trng-word circuit) (circuit-trng-req circuit) (circuit-trng-valid circuit)))
   (define local-hints (hints (cons method-name args) c1 f1 f-out f2))
   (define inv (meta-invariant m))
   (define precondition (@check-no-asserts (@&& (R f1 c1) (inv c1))))
@@ -232,7 +232,7 @@
        (eprintf "f-out = ~v\n" (@evaluate f-out sol))
        (eprintf "c-out = ~v\n" (@evaluate c-out sol))
        (eprintf "(R f2 c2) = ~v\n" (@evaluate (R f2 c2) sol))
-       (eprintf "c2 = ~v\n" (@evaluate c2 sol))
+       ; (eprintf "c2 = ~v\n" (@evaluate c2 sol))
        ;; finally, raise an error
        (error 'verify-method "failed to verify ~a" method-name)]
       [else (error 'verify-method "failed to verify ~a" method-name)])))

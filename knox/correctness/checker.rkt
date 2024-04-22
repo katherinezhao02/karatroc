@@ -160,7 +160,7 @@
               ((yosys:meta-step metadata) 
                 (@update-fields c
                   (list 
-                    (cons (interp:trng-registers-word (interp:globals-trng-registers globals)) (@bv 0 4))
+                    (cons (interp:trng-registers-word (interp:globals-trng-registers globals)) (@bv 0 (interp:globals-trng-word-length globals)))
                     (cons (interp:trng-registers-valid (interp:globals-trng-registers globals)) #f)
                   )))) 
             (match-define (fixpoint setup auto len step-concretize-lens use-pc piecewise step-overapproximate-lens k) hint)
@@ -189,7 +189,7 @@
                      (let ([st* (state (update-state-circuit st1 ckt) pc equalities)])
                        (execution st* (protected-evaluate-to-next-hint k))))
                    working))
-            (dprintf "info: waited for trng, now have ~a threads, ~a waiting~n" (length working) (length waiting))]
+            (dprintf "info: waited for trng, now have ~a threads, ~a waiting, ~a fp~n" (length working) (length waiting) (length fp))]
         [(hint)
          ;; don't actually do anything here, just remember that we need to apply the hint next, and
          ;; step once more to advance past the call
@@ -198,7 +198,7 @@
          (set! working (cons (execution (state st1 pc equalities) hint) working))]))
 
     (define (run-hint! st hint)
-      (match-define (state ist pc equalities) st)
+      (match-define (state (and ist (interp:state control environment globals continuation)) pc equalities) st)
       (match hint
         [(? done?) (set! working (cons (execution st #f) working))]
         [(tactic k)
@@ -274,6 +274,44 @@
         [(case-split! splits* use-equalities k)
          (define splits (do-case-split st use-equalities splits*))
          (set! working (append (map (lambda (st) (execution st (protected-evaluate-to-next-hint k))) splits) working))]
+        [(wait-until-valid! var k)
+          (unless (fixpoint? var)
+              (error 'handle-hypercall! "argument to wait-until-valid must be a fixpoint hint"))
+            (define ckt (interp:globals-circuit globals))
+            (define metadata (interp:globals-meta globals))
+            ;; set valid=0, word=0 before stepping
+            (define (ckt-step c)
+              ((yosys:meta-step metadata) 
+                (@update-fields c
+                  (list 
+                    (cons (interp:trng-registers-word (interp:globals-trng-registers globals)) (@bv 0 (interp:globals-trng-word-length globals)))
+                    (cons (interp:trng-registers-valid (interp:globals-trng-registers globals)) #f)
+                  )))) 
+            (match-define (fixpoint setup auto len step-concretize-lens use-pc piecewise step-overapproximate-lens k) var)
+            (define fp
+              (compute-fixpoint
+               pc
+               (@&& pc (equalities->bool equalities))
+               ckt-step
+               ckt
+               setup
+               auto
+               len
+               step-concretize-lens
+               use-pc
+               piecewise
+               step-overapproximate-lens))
+            ;; Set next delay to be 0
+            (define st1 (update-state-valid ist))
+            (check-crash-condition pc (interp:globals-circuit (interp:state-globals st1)))
+            ;; make one state for every point in fp, put back on working list
+            (set! working
+                  (append
+                   (for/list ([ckt fp])
+                     (let ([st* (state (update-state-circuit st1 ckt) pc equalities)])
+                       (execution st* (protected-evaluate-to-next-hint k))))
+                   working))
+            (dprintf "info: waited for trng, now have ~a threads, ~a waiting, ~a fp~n" (length working) (length waiting) (length fp))]
         [(? merge!?)
          ;; put on waiting list
          (set! waiting (cons st waiting))

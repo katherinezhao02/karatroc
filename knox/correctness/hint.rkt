@@ -219,10 +219,10 @@
     [(_ args ...) #'(clear!-hint args ...)]
     [_ #'clear!-hint]))
 
-(struct wait-until-valid! hint (variable k))
+(struct wait-until-valid! hint (fp k))
 
-(define (wait-until-valid!-hint [variable #f])
-  (wrap (wait-until-valid! variable)))
+(define (wait-until-valid!-hint fp)
+  (wrap (wait-until-valid! fp)))
 
 (define-match-expander wait-until-valid!#
   (syntax-parser [(_ args ...) #'(wait-until-valid! args ...)])

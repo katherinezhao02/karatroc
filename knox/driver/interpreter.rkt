@@ -136,7 +136,7 @@
 ;; State
 
 (addressable-struct globals
-  (environment circuit meta random trng-registers trng-state))
+  (environment circuit meta random trng-word-length trng-registers trng-state))
 
 (addressable-struct trng-state
   (words valid))
@@ -145,19 +145,19 @@
   (word req valid))
 
 (define (update-circuit g circuit)
-  (globals (globals-environment g) circuit (globals-meta g) (globals-random g) (globals-trng-registers g) (globals-trng-state g)))
+  (globals (globals-environment g) circuit (globals-meta g) (globals-random g) (globals-trng-word-length g) (globals-trng-registers g) (globals-trng-state g)))
 
 ; Next word and next valid
 (define (update-trng-state g)
   ; (printf "update trng: ~v ~n" (globals-trng g))
-  (globals (globals-environment g) (globals-circuit g) (globals-meta g) (globals-random g) (globals-trng-registers g)
+  (globals (globals-environment g) (globals-circuit g) (globals-meta g) (globals-random g) (globals-trng-word-length g) (globals-trng-registers g)
     (trng-state (cdr (trng-state-words (globals-trng-state g))) (cdr (trng-state-valid (globals-trng-state g))))
     )
   )
 
 ; Decrements first entry of trng-state-valid
 (define (update-trng-valid g)
-  (globals (globals-environment g) (globals-circuit g) (globals-meta g) (globals-random g) (globals-trng-registers g)
+  (globals (globals-environment g) (globals-circuit g) (globals-meta g) (globals-random g) (globals-trng-word-length g) (globals-trng-registers g)
     (trng-state (trng-state-words (globals-trng-state g)) 
       (cons (- (car (trng-state-valid (globals-trng-state g))) 1) (cdr (trng-state-valid (globals-trng-state g))))
       )
@@ -165,7 +165,7 @@
   )
 
 (define (zero-valid g)
-  (globals (globals-environment g) (globals-circuit g) (globals-meta g) (globals-random g) (globals-trng-registers g)
+  (globals (globals-environment g) (globals-circuit g) (globals-meta g) (globals-random g) (globals-trng-word-length g) (globals-trng-registers g)
     (trng-state (trng-state-words (globals-trng-state g)) 
       (cons 0 (cdr (trng-state-valid (globals-trng-state g))))
       )
@@ -309,7 +309,7 @@
      (define meta (globals-meta globals))
      (case op
        [(tick)
-        ; (printf "here ~v ~v ~n" (valid-ready globals) (get-field ((meta-get-output meta) circuit) (trng-registers-req (globals-trng-registers globals))))
+        ; (printf "here ~v ~n" (globals-trng-state globals))
         (let* (
           ;; Updates circuit according to trng state before stepping
           [circuit* (cond 
@@ -325,13 +325,13 @@
                   (valid-ready globals))
               (update-fields circuit 
                 (list 
-                  (cons (trng-registers-word (globals-trng-registers globals)) (bv 0 4)) ;;TODO: change so that user can input word length
+                  (cons (trng-registers-word (globals-trng-registers globals)) (bv 0 (globals-trng-word-length globals))) ;;TODO: change so that user can input word length
                   (cons (trng-registers-valid (globals-trng-registers globals)) #t)
                 )) ] ;; trng_req is false and trng valid state is true
             [else 
               (update-fields circuit 
                 (list 
-                  (cons (trng-registers-word (globals-trng-registers globals)) (bv 0 4)) ;;TODO: change so that user can input word length
+                  (cons (trng-registers-word (globals-trng-registers globals)) (bv 0 (globals-trng-word-length globals))) ;;TODO: change so that user can input word length
                   (cons (trng-registers-valid (globals-trng-registers globals)) #f)
                 )) ] ;; trng valid state is false
             )]
@@ -488,7 +488,7 @@
    ;; output getters
    (map make-op (meta-output-getters metadata))))
 
-(define (make-interpreter expr global-bindings initial-circuit metadata trng-words-state trng-valid-state random trng-word trng-req trng-valid)
+(define (make-interpreter expr global-bindings initial-circuit metadata trng-words-state trng-valid-state random trng-word-length trng-word trng-req trng-valid)
   (state expr
          (make-assoc)
          (globals
@@ -496,6 +496,7 @@
           initial-circuit
           metadata
           random
+          trng-word-length
           (trng-registers trng-word trng-req trng-valid)
           (trng-state trng-words-state trng-valid-state))
          (done)))
