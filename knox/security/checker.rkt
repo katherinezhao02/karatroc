@@ -198,6 +198,20 @@
         (define c-out ((meta-get-output meta) c-with-input))
         (match-define (result emulator-out emulator-after-out) (emulator-interpret '(get-output) emulator-with-input focus-pred))
         (set! emulator-with-input emulator-after-out) ; in case the emulator updates state / calls the oracle as part of get-output
+        (define c-out-zeroed
+          (@if (spec-random spec) 
+          (@update-field
+            c-out
+            (circuit-trng-next circuit)
+            #f) 
+          c-out))
+        (define emulator-out-zeroed
+          (@if (spec-random spec) 
+          (@update-field
+            emulator-out
+            (circuit-trng-next circuit)
+            #f) 
+          emulator-out))
         (define outputs-equal (@equal? c-out emulator-out))
         ; (printf "c-out ~v~n" c-out)
         ; (printf "emulator-out ~v~n" emulator-out)
@@ -209,14 +223,19 @@
       ;; check crash/reset/recovery
       (unless checks-disabled
         (define c-reset (circuit-crash+power-on-reset (pairing-circuit focus-term))) 
-        (define f (emulator:state-oracle (pairing-emulator focus-term)))
+        (define emulator-after-shutdown (if (spec-random spec) (result-state (emulator-interpret '(shutdown) (pairing-emulator focus-term) focus-pred)) (pairing-emulator focus-term)))
+        (define f (emulator:state-oracle emulator-after-shutdown))
         (define R-post-crash (@check-no-asserts (R (if (spec-random spec) (rstate-spec f) f) c-reset)))
+        (define trng-eq (if (spec-random spec) (@equal? focus-trng (rstate-trng f)) #t))
+        ;(printf "avoided solver query ~v ~v ~v ~n " (eqv? R-post-crash #t) (eqv? trng-eq #t) (and (eqv? R-post-crash #t) (eqv? trng-eq #t)))
         (define crash-model (if
-                             (eqv? R-post-crash #t)
+                             (and (eqv? R-post-crash #t) (eqv? trng-eq #t))
                              (@unsat) ; avoid solver query when possible
                              (@verify (@begin
                                        (@assume focus-pred)
-                                       (@assert R-post-crash)))))
+                                       (@assert R-post-crash)
+                                       (@assert trng-eq)
+                                       ))))
         (unless (@unsat? crash-model)
           (println (@evaluate f crash-model))
           (println (@evaluate c-reset crash-model))
@@ -276,7 +295,11 @@
         (if (spec-random spec) 
             (pairing (pairing-circuit focus-term) (emulator:state focus-aux (rstate-spec focus-oracle)))
             focus-term)) ; Removes the trng state 
+      ; (define focus-circuit-aux (pairing (pairing-circuit focus-term) focus-aux))
+      ; (define focus-emu (emulator:state focus-aux (rstate-spec focus-oracle)))
+      ; (define focus-circuit-oracle (pairing (pairing-circuit focus-term) (rstate-spec focus-oracle)))
       (define focus-effective-pred (@&& focus-pred (equalities->bool focus-eq)))
+
       (define idx (- (length visited) pos 1))
       (match-define (set ref-term ref-pred ref-eq ref-ready ref-trng) (list-ref visited idx))
       (define ref-effective-pred (@&& ref-pred (equalities->bool ref-eq)))
@@ -286,6 +309,28 @@
         (if (spec-random spec) 
             (pairing (pairing-circuit ref-term) (emulator:state ref-aux (rstate-spec ref-oracle)))
             ref-term)) ; Removes the trng state 
+      ; (define ref-circuit-aux (pairing (pairing-circuit ref-term) ref-aux))
+      ; (define ref-emu (emulator:state ref-aux (rstate-spec ref-oracle)))
+      ; (define ref-circuit-oracle (pairing (pairing-circuit ref-term) (rstate-spec ref-oracle)))
+      ; (printf "focus oracle: ")
+      ; (unless (or checks-disabled (@subsumed? #f (rstate-spec focus-oracle) focus-effective-pred (rstate-spec ref-oracle) ref-effective-pred))
+      ;   (error 'subsumed! "subsumption check failed"))
+      ; (printf "sumsumption of emulator oracle done ~n")
+      ; (unless (or checks-disabled (@subsumed? #f (pairing-circuit focus-term) focus-effective-pred (pairing-circuit ref-term) ref-effective-pred))
+      ;   (error 'subsumed! "subsumption check failed"))
+      ; (printf "sumsumption of circuit done ~n")
+      ; (unless (or checks-disabled (@subsumed? #f focus-aux focus-effective-pred ref-aux ref-effective-pred))
+      ;   (error 'subsumed! "subsumption check failed"))
+      ; (printf "sumsumption of emulator aux done ~n")
+      ; (unless (or checks-disabled (@subsumed? #f focus-circuit-aux focus-effective-pred ref-circuit-aux ref-effective-pred))
+      ;   (error 'subsumed! "subsumption check failed"))
+      ; (printf "sumsumption of circuit + emulator aux done ~n")
+      ; (unless (or checks-disabled (@subsumed? #f focus-emu focus-effective-pred ref-emu ref-effective-pred))
+      ;   (error 'subsumed! "subsumption check failed"))
+      ; (printf "sumsumption of emulator done ~n")
+      ; (unless (or checks-disabled (@subsumed? #f focus-circuit-oracle focus-effective-pred ref-circuit-oracle ref-effective-pred))
+      ;   (error 'subsumed! "subsumption check failed"))
+      ; (printf "sumsumption of circuit + emulator oracle done ~n")
       (unless (or checks-disabled (@subsumed? #f focus-term* focus-effective-pred ref-term* ref-effective-pred))
         (error 'subsumed! "subsumption check failed"))
       ;; now, we can just discard the currently focused term
