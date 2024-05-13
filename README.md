@@ -1,5 +1,5 @@
 # Karatroc
-Karatroc is a framework that enables developers to build hardware security modules (HSMs) that use true random number generators (TRNGs)with high assurance through formal verification. The goal is to rule out all hardware bugs, software bugs, and timing side channels.
+Karatroc is a framework that enables developers to build hardware security modules (HSMs) that use true random number generators (TRNGs) with high assurance through formal verification. The goal is to rule out all hardware bugs, software bugs, and timing side channels.
 <!-- # Knox [![Build Status](https://github.com/anishathalye/knox/workflows/CI/badge.svg)](https://github.com/anishathalye/knox/actions?query=workflow%3ACI)
 
 > Knox is a new framework that enables developers to build hardware security
