@@ -1,4 +1,6 @@
-# Knox [![Build Status](https://github.com/anishathalye/knox/workflows/CI/badge.svg)](https://github.com/anishathalye/knox/actions?query=workflow%3ACI)
+# Karatroc
+Karatroc is a framework that enables developers to build hardware security modules (HSMs) that use true random number generators (TRNGs)with high assurance through formal verification. The goal is to rule out all hardware bugs, software bugs, and timing side channels.
+<!-- # Knox [![Build Status](https://github.com/anishathalye/knox/workflows/CI/badge.svg)](https://github.com/anishathalye/knox/actions?query=workflow%3ACI)
 
 > Knox is a new framework that enables developers to build hardware security
 > modules (HSMs) with high assurance through formal verification. The goal is
@@ -88,4 +90,4 @@ Here are some files/directories of interest, and their overall purpose:
     booktitle = {Proceedings of the 16th USENIX Symposium on Operating Systems Design and Implementation~(OSDI)},
     address =   {Carlsbad, CA},
 }
-```
+``` -->
