@@ -1,0 +1,47 @@
+Theory:
+    Visualize as tree: each branch of the tree has a different yield time than every other branch
+    Each branch contains multiple states that are executed in parallel, these
+    states must result in the same output to the TRNG (this will be verified)
+    We limit the scope such that the states must yield/merge at the same times
+
+    Yielding: create fixpoint involving every state in the branch
+
+    Merging between branches: can just merge normally (but with multiple states)
+
+    Case-split: We delete the old state from the branch, then we add 2 new states representing
+        the output of the split
+
+    Merging within a branch: can also just merge normally
+
+Coding:
+Checker
+    Fields:
+        Completed, working, and waiting will be lists
+            For each element in the list, we require timing to be the same
+            as every other element
+    Hints:
+        Two types of merge: between bracnhes and within branch 
+        Between branches: use the waiting list as normal 
+        Within branch: each branch keeps track of a branch-waiting list
+    Run:
+        Recursively calls run-branch until completed or needs to merge between branches
+        Basically same as before
+    Run-branch:
+        Runs each state in the branch until it completes a tick or hits a yield/merge hint
+            branch-working = [st1, st2, ...]
+            branch-waiting = [] : keeps track of merges between branches
+            branch-completed = [] 
+            branch-end = None
+            Recursively calls run-single until tick or hits a yield/merge hint or needs to merge between branches
+        Cases:
+            All states tick: verify outputs are the same, put branch-completed in working
+            All states yield: create big fixpoint
+            All states merge between branches: put branch-new in waiting
+    Run-single:
+        Same as before, but also needs to stop when we hit a tick
+    
+TODO:
+How to merge between branches when there are multiple states in each branch
+How to detect when a state calls tick
+                
+            
