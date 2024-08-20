@@ -39,6 +39,8 @@ Checker
             All states merge between branches: put branch-new in waiting
     Run-single:
         Same as before, but also needs to stop when we hit a tick
+    Fixpoint:
+        Compute fixpoint for each one, check that setup and cycle lengths are the same for each one
     
 TODO:
 How to merge between branches when there are multiple states in each branch

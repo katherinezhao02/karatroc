@@ -13,6 +13,7 @@
  done?
  evaluate-to-next-hint
  (except-out (struct-out merge!) merge!)
+ (except-out (struct-out merge-branch!) merge-branch!)
  (except-out (struct-out fixpoint) fixpoint)
  (except-out (struct-out case-split!) case-split!)
  (struct-out debug*)
@@ -30,6 +31,7 @@
   [tactic# tactic]
   [get-state# get-state]
   [merge!# merge!]
+  [merge-branch!# merge-branch!]
   [fixpoint# fixpoint]
   [case-split!# case-split!]
   [concretize!# concretize!]
@@ -113,6 +115,17 @@
   (syntax-parser
     [(_ args ...) #'(merge!-hint args ...)]
     [_ #'merge!-hint]))
+
+(struct merge-branch! hint (k))
+
+(define (merge-branch!-hint)
+  (wrap (merge-branch!)))
+
+(define-match-expander merge-branch!#
+  (syntax-parser [(_ args ...) #'(merge-branch! args ...)])
+  (syntax-parser
+    [(_ args ...) #'(merge-branch!-hint args ...)]
+    [_ #'merge-branch!-hint]))
 
 (struct fixpoint (setup-cycles auto-detect cycle-length step-concretize-lens use-pc piecewise step-overapproximate-lens k))
 
